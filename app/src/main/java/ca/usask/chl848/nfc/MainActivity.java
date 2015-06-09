@@ -24,8 +24,12 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
@@ -39,6 +43,8 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
     public static final String TAG = "NfcDemo";
 
     private TextView mTextView;
+
+    private MainView m_mainView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +63,10 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
         mTextView = (TextView) findViewById(R.id.textView_explanation);
 
         handleIntent(getIntent());
+
+        m_mainView = new MainView(this);
+
+        this.addContentView(m_mainView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
     }
 
     @Override
@@ -93,9 +103,9 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
 
     @Override
     public NdefMessage createNdefMessage(NfcEvent event) {
-        Time time = new Time();
-        time.setToNow();
-        String text = ("Beam Time: " + time.format("%H:%M:%S"));
+        //Time time = new Time();
+        //time.setToNow();
+        //String text = ("Beam Time: " + time.format("%H:%M:%S"));
         //NdefMessage msg = new NdefMessage(NdefRecord.createMime("text/plain", text.getBytes())
 
                 /**
@@ -108,6 +118,9 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
                  */
                 //,NdefRecord.createApplicationRecord("com.example.android.beam")
         //)
+
+        String text = m_mainView.encodeMessage();
+
         NdefRecord record=new NdefRecord(NdefRecord.TNF_WELL_KNOWN,NdefRecord.RTD_TEXT,new byte[0],text.getBytes());
 
         return new NdefMessage(record);
@@ -287,7 +300,24 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
         @Override
         protected void onPostExecute(String result) {
             if (result != null) {
-                mTextView.setText("Read content: " + result);
+                try {
+                    JSONObject jsonObject = new JSONObject(result);
+                    String ballId = jsonObject.getString("ballId");
+                    int ballColor = jsonObject.getInt("ballColor");
+
+                    m_mainView.receivedBall(ballId, ballColor);
+
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            showToast("received ball");
+                            m_mainView.invalidate();
+                        }
+                    });
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
             }
         }
     }
