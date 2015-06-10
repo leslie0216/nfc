@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">NFC</string>
+    <string name="app_name">Tap</string>
 
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
