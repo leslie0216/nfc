@@ -64,7 +64,7 @@ public class MainView extends View {
     private int m_currentTrail;
     private String m_transactionId;
 
-    private static final int m_experimentPhoneNumber = 1;
+    private static final int m_experimentPhoneNumber = 3;
 
     private MainLogger m_logger;
     private MainLogger m_receiveLogger;
@@ -404,8 +404,8 @@ public class MainView extends View {
         // init ball names
         m_ballNames = new ArrayList<>();
 
-        m_maxBlocks = 2;
-        m_maxTrails = 1;
+        m_maxBlocks = 5;
+        m_maxTrails = 9;
 
         m_currentBlock = 0;
         m_currentTrail = 0;
