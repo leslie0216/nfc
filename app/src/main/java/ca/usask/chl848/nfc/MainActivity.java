@@ -115,7 +115,7 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
         m_userName = bundle.getString("user");
         m_userId = bundle.getString("id");
 
-        setTitle(m_userId + " : " + m_userName + " - : " + getResources().getString(R.string.app_name));
+        setTitle(m_userId + " : " + m_userName + " - " + getResources().getString(R.string.app_name));
 
         m_NfcAdapter = NfcAdapter.getDefaultAdapter(this);
 
