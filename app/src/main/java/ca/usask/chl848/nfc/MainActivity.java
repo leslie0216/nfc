@@ -1,11 +1,14 @@
 package ca.usask.chl848.nfc;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.PendingIntent;
-import android.content.Context;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.net.Uri;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
@@ -19,37 +22,100 @@ import android.os.Parcelable;
 import android.provider.Settings;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
-import android.text.format.Time;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.UUID;
 
 
 public class MainActivity extends ActionBarActivity implements NfcAdapter.CreateNdefMessageCallback, NfcAdapter.OnNdefPushCompleteCallback {
+    private String m_userName;
+    private String m_userId;
 
     NfcAdapter m_NfcAdapter;
     private static final int MESSAGE_SENT = 1;
     public static final String MIME_TEXT_PLAIN = "text/plain";
     public static final String TAG = "NfcDemo";
 
-    private TextView mTextView;
-
     private MainView m_mainView;
+
+    Handler timerHandler = new Handler();
+    Runnable timerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (m_messageList.size() == 0) {
+                m_mainView.sendPhoneInfo();
+            }
+            m_mainView.invalidate();
+
+            sendMessage();
+            timerHandler.postDelayed(this, 500);
+        }
+    };
+
+    /** BT begin
+     */
+    private ClientThread m_clientThread = null;
+    private ConnectedThread m_connectedThread = null;
+
+    private BluetoothAdapter m_bluetoothAdapter = null;
+    private BluetoothDevice m_device = null;
+
+    private BluetoothSocket m_socket = null;
+
+    private UUID m_UUID = UUID.fromString("8bb345b0-712a-400a-8f47-6a4bda472638");
+
+    private InputStream m_inStream;
+    private OutputStream m_outStream;
+
+    private static int REQUEST_ENABLE_BLUETOOTH = 1;
+
+    private ArrayList m_messageList = new ArrayList();
+
+    private boolean isConnected;
+    /** BT end
+     */
+
+    /**
+     * experiment begin
+     */
+    private Button m_startBtn;
+    private Button m_continueBtn;
+    /**
+     * experiment end
+     */
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        Intent intent = this.getIntent();
+        Bundle bundle = intent.getExtras();
+        m_userName = bundle.getString("user");
+        m_userId = bundle.getString("id");
+
+        setTitle(m_userId + " : " + m_userName);
 
         m_NfcAdapter = NfcAdapter.getDefaultAdapter(this);
 
@@ -60,13 +126,78 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
             m_NfcAdapter.setNdefPushMessageCallback(this, this);
         }
 
-        mTextView = (TextView) findViewById(R.id.textView_explanation);
+        //handleIntent(getIntent());
 
-        handleIntent(getIntent());
+        /**
+         * BT begin
+         */
+        setupBluetooth();
+        /**
+         * BT end
+         */
+        m_startBtn = new Button(this);
+        m_startBtn.setText("Start");
+        m_startBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (m_mainView != null && m_mainView.getBallCount() == 0) {
+                    if (!m_mainView.isFinished()) {
+                        m_mainView.startBlock();
+                    } else {
+                        finish();
+                        System.exit(0);
+                    }
+                }
+            }
+        });
+
+        RelativeLayout relativeLayout = new RelativeLayout(this);
+
+        RelativeLayout.LayoutParams layoutParams = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        layoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        relativeLayout.addView(m_startBtn, layoutParams);
+
+        setStartButtonEnabled(false);
 
         m_mainView = new MainView(this);
 
         this.addContentView(m_mainView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
+
+        this.addContentView(relativeLayout, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        /**
+         * experiment begin
+         */
+        m_continueBtn = new Button(this);
+        m_continueBtn.setText("Continue");
+        m_continueBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (m_mainView != null && m_mainView.getBallCount() == 0) {
+                    if (!m_mainView.isFinished()) {
+                        m_mainView.nextBlock();
+                    } else {
+                        showDoneButton();
+                    }
+                }
+            }
+        });
+
+        RelativeLayout relativeLayout_con = new RelativeLayout(this);
+
+        RelativeLayout.LayoutParams layoutParams_con = new RelativeLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        layoutParams_con.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        layoutParams_con.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+        relativeLayout_con.addView(m_continueBtn, layoutParams_con);
+
+        setContinueButtonEnabled(false);
+
+        this.addContentView(relativeLayout_con, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        /**
+         * experiment end
+         */
+
+        timerHandler.postDelayed(timerRunnable, 0);
     }
 
     @Override
@@ -103,22 +234,6 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
 
     @Override
     public NdefMessage createNdefMessage(NfcEvent event) {
-        //Time time = new Time();
-        //time.setToNow();
-        //String text = ("Beam Time: " + time.format("%H:%M:%S"));
-        //NdefMessage msg = new NdefMessage(NdefRecord.createMime("text/plain", text.getBytes())
-
-                /**
-                 * The Android Application Record (AAR) is commented out. When a device
-                 * receives a push with an AAR in it, the application specified in the AAR
-                 * is guaranteed to run. The AAR overrides the tag dispatch system.
-                 * You can add it back in to guarantee that this
-                 * activity starts when receiving a beamed message. For now, this code
-                 * uses the tag dispatch system.
-                 */
-                //,NdefRecord.createApplicationRecord("com.example.android.beam")
-        //)
-
         String text = m_mainView.encodeMessage();
 
         NdefRecord record=new NdefRecord(NdefRecord.TNF_WELL_KNOWN,NdefRecord.RTD_TEXT,new byte[0],text.getBytes());
@@ -130,16 +245,19 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
     public void onNdefPushComplete(NfcEvent arg0) {
         // A handler is needed to send messages to the activity when this
         // callback occurs, because it happens from a binder thread
-        mHandler.obtainMessage(MESSAGE_SENT).sendToTarget();
+        m_msgCompleteHandler.obtainMessage(MESSAGE_SENT).sendToTarget();
     }
 
     /** This handler receives a message from onNdefPushComplete */
-    private final Handler mHandler = new Handler() {
+    private final Handler m_msgCompleteHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case MESSAGE_SENT:
-                    Toast.makeText(getApplicationContext(), "Message sent!", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getApplicationContext(), "Ball sent!", Toast.LENGTH_SHORT).show();
+                    m_mainView.removeBalls();
+                    m_mainView.endTrail();
+                    m_mainView.invalidate();
                     break;
             }
         }
@@ -147,6 +265,7 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
 
     @Override
     public void onResume() {
+        setupThread();
         super.onResume();
         setupForegroundDispatch(this, m_NfcAdapter);
     }
@@ -159,18 +278,6 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
         stopForegroundDispatch(this, m_NfcAdapter);
 
         super.onPause();
-    }
-
-    /**
-     * Parses the NDEF Message from the intent and prints to the TextView
-     */
-    void processIntent(Intent intent) {
-        Parcelable[] rawMsgs = intent.getParcelableArrayExtra(
-                NfcAdapter.EXTRA_NDEF_MESSAGES);
-        // only one message sent during the beam
-        NdefMessage msg = (NdefMessage) rawMsgs[0];
-        // record 0 contains the MIME type, record 1 is the AAR, if present
-        //mInfoText.setText(new String(msg.getRecords()[0].getPayload()));
     }
 
     @Override
@@ -300,25 +407,394 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
         @Override
         protected void onPostExecute(String result) {
             if (result != null) {
-                try {
-                    JSONObject jsonObject = new JSONObject(result);
-                    String ballId = jsonObject.getString("ballId");
-                    int ballColor = jsonObject.getInt("ballColor");
+                m_mainView.logAndSendReceiveMessageToServer(result);
 
-                    m_mainView.receivedBall(ballId, ballColor);
+               //m_mainView.receivedBall(ballId, ballColor);
 
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            showToast("received ball");
-                            m_mainView.invalidate();
-                        }
-                    });
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        showToast("received ball");
+                        m_mainView.invalidate();
+                    }
+                });
             }
         }
     }
+
+    /**
+     * experiment begin
+     */
+    public void setStartButtonEnabled(boolean enabled) {
+        m_startBtn.setEnabled(enabled);
+    }
+
+    public void setContinueButtonEnabled(boolean enabled) {
+        m_continueBtn.setEnabled(enabled);
+    }
+
+    public void showDoneButton() {
+        setContinueButtonEnabled(false);
+        m_startBtn.setText("Done");
+        m_startBtn.setEnabled(true);
+    }
+    /**
+     * experiment end
+     */
+
+    /**
+     * BT begin
+     */
+    @Override
+    protected void onRestart() {
+        setupThread();
+        super.onRestart();
+    }
+
+    @Override
+    protected void onDestroy() {
+        stopThreads();
+        super.onDestroy();
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            exit();
+            //return false;
+            return true;
+        } else {
+            return super.onKeyDown(keyCode, event);
+        }
+    }
+
+    private void exit() {
+        new AlertDialog.Builder(MainActivity.this).setTitle("Warning").setMessage("Do you want to exit?").setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                m_mainView.closeLogger();
+                finish();
+                System.exit(0);
+            }
+        }).setNegativeButton("No", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                //
+            }
+        }).show();
+    }
+
+    private void stopThreads() {
+        if(m_bluetoothAdapter!=null&&m_bluetoothAdapter.isDiscovering()){
+            m_bluetoothAdapter.cancelDiscovery();
+        }
+
+        if (m_clientThread != null) {
+            m_clientThread.cancel();
+            m_clientThread = null;
+        }
+        if (m_connectedThread != null) {
+            m_connectedThread.cancel();
+            m_connectedThread = null;
+        }
+    }
+
+    public void showMessageOnMainView(String msg) {
+        if(m_mainView != null)
+            m_mainView.setMessage(msg);
+    }
+
+    public void sendPhoneInfo() {
+        if (m_mainView != null) {
+            m_mainView.sendPhoneInfo();
+        }
+    }
+
+    private void setupBluetooth(){
+        showMessageOnMainView("Not Connected");
+        isConnected = false;
+
+        m_bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+
+        if(m_bluetoothAdapter != null){  //Device support Bluetooth
+            if(!m_bluetoothAdapter.isEnabled()){
+                Intent intent=new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                startActivityForResult(intent, REQUEST_ENABLE_BLUETOOTH);
+            }
+            else {
+                setupThread();
+            }
+        }
+        else{   //Device does not support Bluetooth
+
+            Toast.makeText(this,"Bluetooth not supported on device", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_ENABLE_BLUETOOTH) {
+            if (resultCode == RESULT_OK) {
+                setupThread();
+            }
+            else {
+                showToast("Bluetooth is not enable on your device");
+            }
+        }
+
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    public void setupThread(){
+        findDevices();
+        if (m_clientThread == null) {
+            m_clientThread = new ClientThread();
+            m_clientThread.start();
+        }
+    }
+
+    public void findDevices() {
+        Set<BluetoothDevice> pairedDevices = m_bluetoothAdapter.getBondedDevices();
+        // If there are paired devices
+        if (pairedDevices.size() > 0) {
+            // Loop through paired devices
+            for (BluetoothDevice device : pairedDevices) {
+                // Add the name and address to an array adapter to show in a ListView
+                if (device.getName().contains("btserver"))
+                {
+                    m_device = device;
+                    break;
+                }
+                //mArrayAdapter.add(device.getName() + "\n" + device.getAddress());
+            }
+        }
+    }
+
+    public String getUserName() {
+        return m_userName;
+    }
+
+    public String getUserId() {
+        return m_userId;
+    }
+
+    private class ConnectedThread extends Thread {
+        public ConnectedThread() {
+            try {
+                m_inStream = m_socket.getInputStream();
+                m_outStream = m_socket.getOutputStream();
+                showMessageOnMainView("Connected");
+                isConnected = true;
+                sendPhoneInfo();
+            } catch (IOException e){
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+
+            byte[] buffer = new byte[1024];
+            int bytes;
+
+            while (true) {
+                try {
+                    // Read from the InputStream
+                    if( m_inStream != null && (bytes = m_inStream.read(buffer)) > 0 )
+                    {
+                        byte[] buf_data = new byte[bytes];
+                        for(int i=0; i<bytes; i++)
+                        {
+                            buf_data[i] = buffer[i];
+                        }
+                        String msg = new String(buf_data);
+                        receiveBTMessage(msg);
+                    }
+                } catch (IOException e) {
+                    cancel();
+                    showMessageOnMainView("Not Connected");
+                    isConnected = false;
+                    m_mainView.clearRemotePhoneInfo();
+                    break;
+                }
+            }
+        }
+
+        public void write(String msg) {
+            try {
+                if (m_outStream != null) {
+                    m_outStream.write(msg.getBytes());
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void cancel() {
+            try {
+                if (m_inStream != null) {
+                    m_inStream.close();
+                    m_inStream = null;
+                }
+                if (m_outStream != null) {
+                    m_outStream.flush();
+                    m_outStream.close();
+                    m_outStream = null;
+                }
+                if (m_socket != null) {
+                    m_socket.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private class ClientThread extends Thread {
+        public ClientThread() {
+            initSocket();
+        }
+
+        private void initSocket() {
+            try {
+                if (m_device != null) {
+                    m_socket = m_device.createInsecureRfcommSocketToServiceRecord(m_UUID);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+            while (true) {
+                if (m_socket != null) {
+                    m_bluetoothAdapter.cancelDiscovery();
+
+                    try {
+                        showMessageOnMainView("Connecting...");
+                        m_socket.connect();
+                    } catch (IOException e) {
+                        try {
+                            m_socket.close();
+                        } catch (IOException e2) {
+                            e2.printStackTrace();
+                        }
+                        initSocket();
+                        continue;
+                    }
+
+                    //Do work to manage the connection (in a separate thread)
+                    m_connectedThread = new ConnectedThread();
+                    m_connectedThread.start();
+                    break;
+                } else {
+                    initSocket();
+                }
+            }
+        }
+
+        public void cancel() {
+            try {
+                if (m_inStream != null) {
+                    m_inStream.close();
+                    m_inStream = null;
+                }
+                if (m_outStream != null) {
+                    m_outStream.flush();
+                    m_outStream.close();
+                    m_outStream = null;
+                }
+
+                if (m_socket != null) {
+                    m_socket.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void sendBTMessage(String msg) {
+        if (m_connectedThread != null) {
+            m_connectedThread.write(msg);
+        }
+    }
+
+    public void addMessage(String msg) {
+        m_messageList.add(msg);
+    }
+
+    public void sendMessage(){
+        if (m_messageList.size() != 0) {
+            String msg = (String)m_messageList.get(0);
+            m_messageList.remove(0);
+            sendBTMessage(msg);
+        }
+    }
+
+    private void receiveBTMessage(String msg){
+        try {
+            JSONArray jsonArray = new JSONArray(msg);
+
+            int len = jsonArray.length();
+
+            ArrayList<String> names = new ArrayList<>();
+
+            for (int i=0; i<len; ++i) {
+                JSONObject jsonObject = jsonArray.getJSONObject(i);
+
+                final String senderName = jsonObject.getString("name");
+                int senderColor = jsonObject.getInt("color");
+                float senderX = (float) jsonObject.getDouble("x");
+                float senderY = (float) jsonObject.getDouble("y");
+                float senderZ = (float) jsonObject.getDouble("z");
+
+                if (m_mainView != null) {
+                    m_mainView.updateRemotePhone(senderName, senderColor);
+                }
+
+                boolean isSendingBall = jsonObject.getBoolean("isSendingBall");
+                if (isSendingBall && m_mainView != null) {
+                    String receiverName = jsonObject.getString("receiverName");
+                    if (receiverName.equalsIgnoreCase(m_userName)) {
+                        String ballId = jsonObject.getString("ballId");
+                        int ballColor = jsonObject.getInt("ballColor");
+                        m_mainView.receivedBall(ballId, ballColor);
+
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                showToast("received ball from : " + senderName);
+                            }
+                        });
+                    }
+                }
+
+                names.add(senderName);
+            }
+
+            ArrayList<MainView.RemotePhoneInfo> remotePhoneInfos = m_mainView.getRemotePhones();
+            ArrayList<MainView.RemotePhoneInfo> lostPhoneInfos = new ArrayList<>();
+            for (MainView.RemotePhoneInfo phoneInfo : remotePhoneInfos) {
+                if (!names.contains(phoneInfo.m_name)) {
+                    lostPhoneInfos.add(phoneInfo);
+                }
+            }
+
+            if (!lostPhoneInfos.isEmpty()) {
+                m_mainView.removePhones(lostPhoneInfos);
+            }
+        }catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public boolean isConnected(){
+        return isConnected;
+    }
+
+    /**
+     * BT end
+     */
 }
