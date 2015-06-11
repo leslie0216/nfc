@@ -144,6 +144,7 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
                     if (!m_mainView.isFinished()) {
                         m_mainView.startBlock();
                     } else {
+                        m_mainView.closeLogger();
                         finish();
                         System.exit(0);
                     }
