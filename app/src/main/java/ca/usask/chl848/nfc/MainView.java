@@ -70,6 +70,8 @@ public class MainView extends View {
 
     private MainLogger m_logger;
     private MainLogger m_receiveLogger;
+
+    private boolean m_isExperimentInitialised;
     /**
      * experiment end
      */
@@ -92,6 +94,8 @@ public class MainView extends View {
         m_ballRadius = displayMetrics.widthPixels * 0.08f;
         m_ballBornX = displayMetrics.widthPixels * 0.5f;
         m_ballBornY = displayMetrics.heightPixels * 0.75f - m_ballRadius * 2.0f;
+
+        m_isExperimentInitialised = false;
 
         //addBall();
     }
@@ -194,7 +198,7 @@ public class MainView extends View {
             /**
              * experiment end
              */
-            if (m_remotePhones.size() == m_experimentPhoneNumber) {
+            if (m_remotePhones.size() == m_experimentPhoneNumber && !m_isExperimentInitialised) {
                 initExperiment();
             }
             /**
@@ -418,6 +422,8 @@ public class MainView extends View {
      * experiment begin
      */
     private void initExperiment() {
+        m_isExperimentInitialised = true;
+
         // init ball names
         m_ballNames = new ArrayList<>();
 

@@ -255,7 +255,7 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case MESSAGE_SENT:
-                    Toast.makeText(getApplicationContext(), "Ball sent!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), "Ball has been sent!", Toast.LENGTH_SHORT).show();
                     m_mainView.removeBalls();
                     m_mainView.endTrail();
                     m_mainView.invalidate();
@@ -415,7 +415,7 @@ public class MainActivity extends ActionBarActivity implements NfcAdapter.Create
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        showToast("received ball");
+                        showToast("Received ball!");
                         m_mainView.invalidate();
                     }
                 });
