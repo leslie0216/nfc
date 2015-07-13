@@ -26,7 +26,7 @@ public class MainView extends View {
     private String m_id;
     private String m_name;
     private int m_color;
-    private static final int m_messageTextSize = 50;
+    private static final int m_messageTextSize = 70;
     private static final int m_textStrokeWidth = 2;
     private static final int m_boundaryStrokeWidth = 10;
 
@@ -105,7 +105,7 @@ public class MainView extends View {
         showBoundary(canvas);
         showMessage(canvas);
         showBalls(canvas);
-        showProgress(canvas);
+        //showProgress(canvas);
     }
 
     public void showBoundary(Canvas canvas) {
@@ -137,6 +137,7 @@ public class MainView extends View {
                  * experiment begin
                  */
                 m_paint.setStrokeWidth(m_textStrokeWidth);
+                m_paint.setTextSize(m_messageTextSize);
                 float textX = ball.m_ballX - m_ballRadius;
                 float textY = ball.m_ballY - m_ballRadius;
                 if (ball.m_name.length() > 5) {
@@ -435,13 +436,15 @@ public class MainView extends View {
 
         resetBlock();
 
-        m_logger = new MainLogger(getContext(), m_id+"_"+m_name+"_"+getResources().getString(R.string.app_name));
+        //m_logger = new MainLogger(getContext(), m_id+"_"+m_name+"_"+getResources().getString(R.string.app_name));
+        m_logger = null;
         //<participantID> <participantName> <condition> <block#> <trial#> <elapsed time for this trial> <transactionId> <timestamp>
-        m_logger.writeHeaders("participantID" + "," + "participantName" + "," + "condition" + "," + "block" + "," + "trial" + "," + "elapsedTime" + "," + "transactionId" + "," + "timestamp");
+        //m_logger.writeHeaders("participantID" + "," + "participantName" + "," + "condition" + "," + "block" + "," + "trial" + "," + "elapsedTime" + "," + "transactionId" + "," + "timestamp");
 
-        m_receiveLogger = new MainLogger(getContext(), m_id+"_"+m_name+"_"+getResources().getString(R.string.app_name) + "_" + "receive");
+        //m_receiveLogger = new MainLogger(getContext(), m_id+"_"+m_name+"_"+getResources().getString(R.string.app_name) + "_" + "receive");
+        m_receiveLogger = null;
         //<senderID> <senderName> <condition> <block#> <trial#> <receiverName> <actualReceiverName> <isCorrect> <transactionId> <timestamp>
-        m_receiveLogger.writeHeaders("senderId" + "," + "senderName" + "," + "condition" + "," + "block" + "," + "trial" + "," + "receiverName" + "," + "actualReceiverName" + "," + "isCorrect" + "," + "transactionId" + "," + "timestamp");
+        //m_receiveLogger.writeHeaders("senderId" + "," + "senderName" + "," + "condition" + "," + "block" + "," + "trial" + "," + "receiverName" + "," + "actualReceiverName" + "," + "isCorrect" + "," + "transactionId" + "," + "timestamp");
 
         ((MainActivity) getContext()).runOnUiThread(new Runnable() {
             @Override
